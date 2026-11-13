@@ -12,9 +12,8 @@ header{background:#123b65;color:white;padding:23px 18px;border-radius:0 0 22px 2
 header h2{margin:0 0 8px}
 header p{margin:0;color:#d5e5f6}
 main{padding:16px;max-width:650px;margin:auto}
-.card{background:white;padding:17px;border-radius:16px;margin-bottom:15px;box-shadow:0 3px 12px #0000000c}
+.card,.stat{background:white;padding:17px;border-radius:16px;margin-bottom:15px;box-shadow:0 3px 12px #0000000c}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.stat{background:white;padding:16px;border-radius:14px}
 .stat strong{display:block;font-size:21px;margin-top:10px}
 button{border:0;border-radius:11px;padding:13px;font-size:15px;cursor:pointer}
 .mic{width:100%;background:#1469b8;color:white;padding:19px;font-size:18px}
@@ -23,6 +22,7 @@ input,select,textarea{width:100%;padding:13px;margin:7px 0 13px;border:1px solid
 .save{background:#147c51;color:white;width:100%}
 .small{color:#68768a;font-size:13px}
 .item{padding:12px 0;border-bottom:1px solid #eee}
+.status{padding:10px;border-radius:9px;background:#edf4fa;font-size:13px;margin:12px 0}
 nav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 nav button{background:#eaf1f8;color:#17446d}
 </style>
@@ -35,9 +35,11 @@ nav button{background:#eaf1f8;color:#17446d}
 </header>
 
 <main>
+<div class="status" id="connection">در حال اتصال به دیتابیس...</div>
+
 <div class="stats">
 <div class="stat">
-<small>فروش امروز</small>
+<small>فروش ثبت‌شده</small>
 <strong id="sales">۰ ؋</strong>
 </div>
 <div class="stat">
@@ -48,16 +50,16 @@ nav button{background:#eaf1f8;color:#17446d}
 
 <div class="card">
 <h3>🎙️ ثبت حساب با صدا</h3>
-<p class="small">به زبان دری افغانستان صحبت کن. سیستم صدایت را به نوشته تبدیل می‌کند.</p>
+<p class="small">به زبان دری صحبت کن. متن صدایت در پایین نوشته می‌شود.</p>
 <button class="mic" id="mic">🎤 شروع صحبت</button>
 <p id="status" class="small">میکروفون آماده است.</p>
-<label>متن تشخیص داده‌شده:</label>
-<textarea id="speech" rows="4" placeholder="صدایت اینجا به نوشته تبدیل می‌شود..."></textarea>
-<p class="small">متن را بررسی و در صورت نیاز اصلاح کن.</p>
+<textarea id="speech" rows="4" placeholder="متن صدای شما..."></textarea>
+<button type="button" id="useSpeech" style="background:#eaf1f8;width:100%">استفاده از متن صدا در توضیحات</button>
 </div>
 
 <div class="card">
 <h3>ثبت معامله</h3>
+
 <label>نوع معامله</label>
 <select id="type">
 <option value="sale">فروش</option>
@@ -73,7 +75,7 @@ nav button{background:#eaf1f8;color:#17446d}
 <input id="quantity" type="number" min="1" value="1">
 
 <label>مبلغ (افغانی)</label>
-<input id="amount" type="number" min="0" placeholder="مثلاً ۱۵۰۰">
+<input id="amount" type="number" min="0.01" step="0.01" placeholder="مثلاً ۱۵۰۰">
 
 <label>نام مشتری یا فروشنده</label>
 <input id="person" placeholder="نام شخص (اختیاری)">
@@ -81,86 +83,151 @@ nav button{background:#eaf1f8;color:#17446d}
 <label>توضیحات</label>
 <textarea id="notes" rows="2" placeholder="توضیحات اضافی"></textarea>
 
-<button class="save" id="save">ذخیره معامله</button>
+<button class="save" id="save">ذخیره آنلاین معامله</button>
 </div>
 
 <div class="card">
-<h3>آخرین معاملات</h3>
-<div id="history" class="small">هنوز معامله‌ای ثبت نشده است.</div>
+<h3>آخرین معاملات آنلاین</h3>
+<div id="history" class="small">در حال دریافت اطلاعات...</div>
 </div>
 
 <div class="card">
-<h3>بخش‌های حساب‌داری</h3>
+<h3>بخش‌های حسابداری</h3>
 <nav>
-<button onclick="alert('بخش انبار در مرحله بعد فعال می‌شود')">📦 انبار</button>
-<button onclick="alert('بخش قرض‌ها در مرحله بعد فعال می‌شود')">👥 قرض‌ها</button>
-<button onclick="alert('گزارش‌ها در مرحله بعد فعال می‌شوند')">📊 گزارش‌ها</button>
+<button onclick="alert('بخش انبار در مرحله بعد ساخته می‌شود')">📦 انبار</button>
+<button onclick="alert('بخش قرض‌ها در مرحله بعد ساخته می‌شود')">👥 قرض‌ها</button>
+<button onclick="alert('گزارش‌ها در مرحله بعد ساخته می‌شود')">📊 گزارش‌ها</button>
 </nav>
 </div>
+
 <p class="small" style="text-align:center">حساب‌یار دوکان | واحد پول افغانی ؋</p>
 </main>
 
 <script>
 const $=id=>document.getElementById(id);
-let transactions=JSON.parse(localStorage.getItem('hy_transactions')||'[]');
+let transactions=[];
+let busy=false;
+
+const names={
+ sale:'فروش',
+ purchase:'خرید',
+ expense:'مصارف',
+ debt:'قرض'
+};
 
 function money(n){
  return Number(n||0).toLocaleString('en-US')+' ؋';
 }
 
-function render(){
- const sales=transactions.filter(x=>x.type==='sale')
- .reduce((s,x)=>s+x.amount,0);
- $('sales').textContent=money(sales);
- $('count').textContent=transactions.length;
- $('history').innerHTML=transactions.length?
- transactions.slice().reverse().slice(0,15).map(x=>
- `<div class="item">
- <b>${escapeHTML(x.product)}</b><br>
- <span>${escapeHTML(x.typeName)} | ${money(x.amount)}</span><br>
- <span class="small">${escapeHTML(x.person||'بدون نام')} - ${escapeHTML(x.date)}</span>
- </div>`).join(''):
- 'هنوز معامله‌ای ثبت نشده است.';
-}
-
 function escapeHTML(s){
- return String(s||'').replace(/[&<>"']/g,c=>({
- '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+ return String(s??'').replace(/[&<>"']/g,c=>({
+ '&':'&amp;',
+ '<':'&lt;',
+ '>':'&gt;',
+ '"':'&quot;',
+ "'":'&#39;'
  }[c]));
 }
 
-$('save').onclick=()=>{
- const types={
- sale:'فروش',purchase:'خرید',expense:'مصارف',debt:'قرض'
- };
- const product=$('product').value.trim();
- const amount=Number($('amount').value);
- const quantity=Number($('quantity').value);
+function render(){
+ const sales=transactions
+ .filter(x=>x.type==='sale')
+ .reduce((s,x)=>s+Number(x.amount),0);
 
- if(!product||!amount||amount<0||quantity<1){
- alert('نام معامله، تعداد و مبلغ را درست وارد کن.');
+ $('sales').textContent=money(sales);
+ $('count').textContent=transactions.length;
+
+ $('history').innerHTML=transactions.length?
+ transactions.slice(0,30).map(x=>{
+ const date=x.created_at?
+ new Date(x.created_at).toLocaleDateString('fa-IR'):'';
+ return `<div class="item">
+ <b>${escapeHTML(x.product)}</b><br>
+ ${escapeHTML(names[x.type]||x.type)} |
+ ${money(x.amount)}<br>
+ تعداد: ${escapeHTML(x.quantity)} |
+ ${escapeHTML(x.person||'بدون نام')}<br>
+ <span class="small">${escapeHTML(date)}</span>
+ </div>`;
+ }).join(''):
+ 'هنوز معامله‌ای ثبت نشده است.';
+}
+
+async function loadTransactions(){
+ try{
+ const r=await fetch('/api/transactions');
+ const data=await r.json();
+
+ if(!r.ok||!data.ok) throw new Error(data.message||'Database error');
+
+ transactions=data.transactions||[];
+ render();
+ $('connection').textContent='🟢 دیتابیس آنلاین وصل است.';
+ $('connection').style.color='#147c51';
+ }catch(e){
+ $('connection').textContent='🔴 اتصال دیتابیس برقرار نشد: '+e.message;
+ $('history').textContent='اطلاعات دریافت نشد.';
+ }
+}
+
+$('save').onclick=async()=>{
+ if(busy)return;
+
+ const type=$('type').value;
+ const product=$('product').value.trim();
+ const quantity=Number($('quantity').value);
+ const amount=Number($('amount').value);
+
+ if(!product||!Number.isInteger(quantity)||quantity<1||!Number.isFinite(amount)||amount<=0){
+ alert('نام جنس، تعداد و مبلغ را درست وارد کن.');
  return;
  }
 
- const type=$('type').value;
- const now=new Date();
+ const body={
+ type,
+ product,
+ quantity,
+ amount,
+ person:$('person').value.trim(),
+ notes:$('notes').value.trim()
+ };
 
- transactions.push({
- type,typeName:types[type],
- product,amount,quantity,
- person:$('person').value,
- notes:$('notes').value,
- date:now.toLocaleDateString('fa-IR')
+ busy=true;
+ $('save').disabled=true;
+ $('save').textContent='در حال ذخیره...';
+
+ try{
+ const r=await fetch('/api/transactions',{
+ method:'POST',
+ headers:{'Content-Type':'application/json'},
+ body:JSON.stringify(body)
  });
 
- localStorage.setItem('hy_transactions',JSON.stringify(transactions));
+ const data=await r.json();
+ if(!r.ok||!data.ok)throw new Error(data.message||'ذخیره انجام نشد');
+
  $('product').value='';
+ $('quantity').value='1';
  $('amount').value='';
  $('person').value='';
  $('notes').value='';
  $('speech').value='';
- render();
- alert('معامله در موبایل ذخیره شد.');
+
+ await loadTransactions();
+ alert('معامله با موفقیت در دیتابیس آنلاین ذخیره شد.');
+ }catch(e){
+ alert('خطا در ذخیره: '+e.message);
+ }finally{
+ busy=false;
+ $('save').disabled=false;
+ $('save').textContent='ذخیره آنلاین معامله';
+ }
+};
+
+$('useSpeech').onclick=()=>{
+ const text=$('speech').value.trim();
+ if(!text)return alert('اول صحبت کن.');
+ $('notes').value=text;
 };
 
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -195,14 +262,15 @@ if(SpeechRecognition){
  $('status').textContent='خطای میکروفون: '+e.error;
  };
 }else{
- $('status').textContent='مرورگر از تشخیص گفتار پشتیبانی نمی‌کند.';
+ $('status').textContent='این مرورگر از تشخیص گفتار پشتیبانی نمی‌کند.';
 }
 
 $('mic').onclick=()=>{
  if(!recognition){
- alert('لطفاً از مرورگر Google Chrome استفاده کن.');
+ alert('لطفاً از Google Chrome استفاده کن.');
  return;
  }
+
  if(!listening){
  try{
  recognition.start();
@@ -218,7 +286,7 @@ $('mic').onclick=()=>{
  }
 };
 
-render();
+loadTransactions();
 </script>
 </body>
 </html>
