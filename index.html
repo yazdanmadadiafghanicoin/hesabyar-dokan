@@ -1,0 +1,224 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>حساب‌یار دوکان</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f2f5fa;color:#182337;font-family:Arial,Tahoma,sans-serif}
+header{background:#123b65;color:white;padding:23px 18px;border-radius:0 0 22px 22px}
+header h2{margin:0 0 8px}
+header p{margin:0;color:#d5e5f6}
+main{padding:16px;max-width:650px;margin:auto}
+.card{background:white;padding:17px;border-radius:16px;margin-bottom:15px;box-shadow:0 3px 12px #0000000c}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat{background:white;padding:16px;border-radius:14px}
+.stat strong{display:block;font-size:21px;margin-top:10px}
+button{border:0;border-radius:11px;padding:13px;font-size:15px;cursor:pointer}
+.mic{width:100%;background:#1469b8;color:white;padding:19px;font-size:18px}
+.mic.recording{background:#d43c3c}
+input,select,textarea{width:100%;padding:13px;margin:7px 0 13px;border:1px solid #d9e0e9;border-radius:10px;font-size:15px;background:white}
+.save{background:#147c51;color:white;width:100%}
+.small{color:#68768a;font-size:13px}
+.item{padding:12px 0;border-bottom:1px solid #eee}
+nav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+nav button{background:#eaf1f8;color:#17446d}
+</style>
+</head>
+<body>
+
+<header>
+<h2>حساب‌یار دوکان</h2>
+<p>سیستم هوشمند مدیریت و حسابداری دوکان</p>
+</header>
+
+<main>
+<div class="stats">
+<div class="stat">
+<small>فروش امروز</small>
+<strong id="sales">۰ ؋</strong>
+</div>
+<div class="stat">
+<small>تعداد معاملات</small>
+<strong id="count">۰</strong>
+</div>
+</div>
+
+<div class="card">
+<h3>🎙️ ثبت حساب با صدا</h3>
+<p class="small">به زبان دری افغانستان صحبت کن. سیستم صدایت را به نوشته تبدیل می‌کند.</p>
+<button class="mic" id="mic">🎤 شروع صحبت</button>
+<p id="status" class="small">میکروفون آماده است.</p>
+<label>متن تشخیص داده‌شده:</label>
+<textarea id="speech" rows="4" placeholder="صدایت اینجا به نوشته تبدیل می‌شود..."></textarea>
+<p class="small">متن را بررسی و در صورت نیاز اصلاح کن.</p>
+</div>
+
+<div class="card">
+<h3>ثبت معامله</h3>
+<label>نوع معامله</label>
+<select id="type">
+<option value="sale">فروش</option>
+<option value="purchase">خرید جنس</option>
+<option value="expense">مصارف دوکان</option>
+<option value="debt">قرض مشتری</option>
+</select>
+
+<label>نام جنس یا شرح معامله</label>
+<input id="product" placeholder="مثلاً صفحه آیفون ۱۲">
+
+<label>تعداد</label>
+<input id="quantity" type="number" min="1" value="1">
+
+<label>مبلغ (افغانی)</label>
+<input id="amount" type="number" min="0" placeholder="مثلاً ۱۵۰۰">
+
+<label>نام مشتری یا فروشنده</label>
+<input id="person" placeholder="نام شخص (اختیاری)">
+
+<label>توضیحات</label>
+<textarea id="notes" rows="2" placeholder="توضیحات اضافی"></textarea>
+
+<button class="save" id="save">ذخیره معامله</button>
+</div>
+
+<div class="card">
+<h3>آخرین معاملات</h3>
+<div id="history" class="small">هنوز معامله‌ای ثبت نشده است.</div>
+</div>
+
+<div class="card">
+<h3>بخش‌های حساب‌داری</h3>
+<nav>
+<button onclick="alert('بخش انبار در مرحله بعد فعال می‌شود')">📦 انبار</button>
+<button onclick="alert('بخش قرض‌ها در مرحله بعد فعال می‌شود')">👥 قرض‌ها</button>
+<button onclick="alert('گزارش‌ها در مرحله بعد فعال می‌شوند')">📊 گزارش‌ها</button>
+</nav>
+</div>
+<p class="small" style="text-align:center">حساب‌یار دوکان | واحد پول افغانی ؋</p>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+let transactions=JSON.parse(localStorage.getItem('hy_transactions')||'[]');
+
+function money(n){
+ return Number(n||0).toLocaleString('en-US')+' ؋';
+}
+
+function render(){
+ const sales=transactions.filter(x=>x.type==='sale')
+ .reduce((s,x)=>s+x.amount,0);
+ $('sales').textContent=money(sales);
+ $('count').textContent=transactions.length;
+ $('history').innerHTML=transactions.length?
+ transactions.slice().reverse().slice(0,15).map(x=>
+ `<div class="item">
+ <b>${escapeHTML(x.product)}</b><br>
+ <span>${escapeHTML(x.typeName)} | ${money(x.amount)}</span><br>
+ <span class="small">${escapeHTML(x.person||'بدون نام')} - ${escapeHTML(x.date)}</span>
+ </div>`).join(''):
+ 'هنوز معامله‌ای ثبت نشده است.';
+}
+
+function escapeHTML(s){
+ return String(s||'').replace(/[&<>"']/g,c=>({
+ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+ }[c]));
+}
+
+$('save').onclick=()=>{
+ const types={
+ sale:'فروش',purchase:'خرید',expense:'مصارف',debt:'قرض'
+ };
+ const product=$('product').value.trim();
+ const amount=Number($('amount').value);
+ const quantity=Number($('quantity').value);
+
+ if(!product||!amount||amount<0||quantity<1){
+ alert('نام معامله، تعداد و مبلغ را درست وارد کن.');
+ return;
+ }
+
+ const type=$('type').value;
+ const now=new Date();
+
+ transactions.push({
+ type,typeName:types[type],
+ product,amount,quantity,
+ person:$('person').value,
+ notes:$('notes').value,
+ date:now.toLocaleDateString('fa-IR')
+ });
+
+ localStorage.setItem('hy_transactions',JSON.stringify(transactions));
+ $('product').value='';
+ $('amount').value='';
+ $('person').value='';
+ $('notes').value='';
+ $('speech').value='';
+ render();
+ alert('معامله در موبایل ذخیره شد.');
+};
+
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition=null;
+let listening=false;
+
+if(SpeechRecognition){
+ recognition=new SpeechRecognition();
+ recognition.lang='fa-IR';
+ recognition.continuous=true;
+ recognition.interimResults=true;
+
+ recognition.onresult=e=>{
+ let result='';
+ for(let i=0;i<e.results.length;i++){
+ result+=e.results[i][0].transcript+' ';
+ }
+ $('speech').value=result.trim();
+ };
+
+ recognition.onend=()=>{
+ listening=false;
+ $('mic').classList.remove('recording');
+ $('mic').textContent='🎤 شروع صحبت';
+ $('status').textContent='صحبت تمام شد. متن را بررسی کن.';
+ };
+
+ recognition.onerror=e=>{
+ listening=false;
+ $('mic').classList.remove('recording');
+ $('mic').textContent='🎤 شروع صحبت';
+ $('status').textContent='خطای میکروفون: '+e.error;
+ };
+}else{
+ $('status').textContent='مرورگر از تشخیص گفتار پشتیبانی نمی‌کند.';
+}
+
+$('mic').onclick=()=>{
+ if(!recognition){
+ alert('لطفاً از مرورگر Google Chrome استفاده کن.');
+ return;
+ }
+ if(!listening){
+ try{
+ recognition.start();
+ listening=true;
+ $('mic').classList.add('recording');
+ $('mic').textContent='⏹ توقف صحبت';
+ $('status').textContent='در حال شنیدن صدای شما...';
+ }catch(e){
+ $('status').textContent='میکروفون را دوباره امتحان کن.';
+ }
+ }else{
+ recognition.stop();
+ }
+};
+
+render();
+</script>
+</body>
+</html>
